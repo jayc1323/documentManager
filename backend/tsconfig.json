@@ -2,6 +2,11 @@
   "extends": "@adonisjs/tsconfig/tsconfig.app.json",
   "compilerOptions": {
     "rootDir": "./",
-    "outDir": "./build"
+    "outDir": "./build",
+    "baseUrl": ".",
+    "paths": {
+      "@ioc:Adonis/Core/*": ["node_modules/@adonisjs/core/build/adonis-typings/*"],
+      "@ioc:Adonis/Addons/*": ["node_modules/@adonisjs/addons/build/adonis-typings/*"]
+    }
   }
 }

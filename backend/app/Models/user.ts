@@ -20,6 +20,9 @@ export default class User extends compose(BaseModel, AuthFinder) {
   declare email: string
 
   @column({ serializeAs: null })
+  declare resetToken: string | null 
+
+  @column({ serializeAs: null })
   declare password: string
 
   @column.dateTime({ autoCreate: true })
