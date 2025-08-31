@@ -28,4 +28,5 @@ router.post('/request-password-reset', authController.requestPasswordReset);
 router.post('/reset-password', authController.resetPassword);
 
 router.post('/documents', documentsController.upload);
-router.get('/documents/:id', documentsController.retrieve);
+router.get('/dashboard', documentsController.showAll);
+router.get('/retrieve', documentsController.retrieve);

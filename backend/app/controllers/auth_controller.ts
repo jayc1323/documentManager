@@ -17,23 +17,25 @@ export default class AuthController {
     return response.created({ message: 'User created successfully', user });
   }
 
-  public async login({ request,auth, response }: HttpContext) {
+  public async login({ request,response }: HttpContext) {
     const { email, password } = request.only(['email', 'password'])
 
     try {
       const user = await User.verifyCredentials(email, password)
       if (user) {
         console.log(user);
-        const token = await auth.use('web').login(user) // if you're using sessions or tokens
+     //  await auth.use('web').login(user) // if you're using sessions or tokens
+       
         return response.ok({
           message: 'Login successful',
-          token,
+        
+          //token,
         });
       } else {
         return response.unauthorized({ message: 'Invalid email or password' })
       }
     } catch (error) {
-      return response.unauthorized({ message: 'Internal issue' })
+      return response.unauthorized({ message: 'Valid email/passwd combination but auth failed'})
     }
   }
 

@@ -7,7 +7,7 @@ export default class DocumentsController {
 
   // Upload a document
   public async upload({ request, auth, response }: HttpContext) {
-    const user = await auth.authenticate() as User; // E
+    const user = await auth.authenticate() as User; //  
     const file = request.file('document',{
       size: '5mb',
       extnames: ['pdf', 'doc', 'docx', 'jpg', 'png']
@@ -58,11 +58,11 @@ export default class DocumentsController {
   }
 
   // Show all documents uploaded by a user
-  public async showAll({ auth, response }: HttpContext) {
-    const user = await auth.authenticate() as User; // Ensure the user is authenticated
-
+  public async showAll({  response }: HttpContext) {
+   // const user = await auth.authenticate() as User; // Ensure the user is authenticated
+    console.log('Fetching documents for user:', 2);
     const documents = await Document.query()
-      .where('user_id', user.id) // Fetch documents belonging to the authenticated user
+      .where('user_id', 2) // Fetch documents belonging to the authenticated user
       .orderBy('created_at', 'desc'); // Order by creation date (most recent first)
 
     return response.ok(documents);
