@@ -41,14 +41,6 @@ export default class AuthController {
 
 
   // Logout the authenticated user
-  public async logout({ auth, response }: HttpContext) {
-    try {
-      await auth.use('web').logout(); // Revoke the session
-      return response.ok({ message: 'Logout successful' });
-    } catch (error) {
-      return response.internalServerError({ message: 'Logout failed' });
-    }
-  }
 
   // Request a password reset
   public async requestPasswordReset({ request, response }: HttpContext) {
