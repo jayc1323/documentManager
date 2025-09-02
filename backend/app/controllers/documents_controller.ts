@@ -29,33 +29,48 @@ export default class DocumentsController {
   }
 
   // Retrieve/download a document
-  public async retrieve({ params, auth, response }: HttpContext) {
-    const user = await auth.authenticate() as User;
-    let document;
-    console.error('Fetching document for user: ', user.id,' docid ', params.id);
-    try {
-        document = await Document.query()
-                  .where('id', params.id)
-                  .andWhere('user_id', user.id)
-                  .firstOrFail();
+public async retrieve({ params, auth, response }: HttpContext) {
+  const user = await auth.authenticate() as User;
+  let document;
 
-                console.error('Found document in DB:', document.toJSON());
-        } catch (error) {
-          console.error('DB query failed:', error);
-          return response.notFound({ message: 'Document not found in Model' });
-        }
+  console.error('Fetching document for user: ', user.id,' docid ', params.id);
 
-     const filePath = app.makePath('storage',`${document.url}`);
-     console.error('Path requested is ',filePath)
-              try {
-                console.log('Attempting to download file at:', filePath);
-                await response.download(filePath);
-              } catch (error) {
-                console.error(' File download failed:', error);
-                response.status(error.code === 'ENOENT' ? 404 : 500);
-                response.send('Cannot get file from storage');
-              }
-    }
+  try {
+    document = await Document.query()
+      .where('id', params.id)
+      .andWhere('user_id', user.id)
+      .firstOrFail();
+
+    console.error('Found document in DB:', document.toJSON());
+  } catch (error) {
+    console.error('DB query failed:', error);
+    return response.notFound({ message: 'Document not found in Model' });
+  }
+
+  const filePath = app.makePath('storage', `${document.url}`);
+  console.error('Path requested is ', filePath);
+
+  try {
+    // Use the original filename from document.url
+    const filename = document.url.split('/').pop() || 'downloaded-file';
+
+    // Set Content-Disposition to force the correct filename
+    response.header('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Optionally, set Content-Type based on extension
+    const mime = (await import('mime-types')).default;
+    const contentType = mime.lookup(filename) || 'application/octet-stream';
+    response.header('Content-Type', contentType);
+
+    console.log('Attempting to download file at:', filePath);
+    await response.download(filePath);
+  } catch (error) {
+    console.error('File download failed:', error);
+    response.status(error.code === 'ENOENT' ? 404 : 500);
+    response.send('Cannot get file from storage');
+  }
+}
+
 
   // Delete a document
   public async delete({ params, auth, response }: HttpContext) {

@@ -40,11 +40,10 @@ export default class AuthController {
   }
 
 
-  // Logout the authenticated user
-
   // Request a password reset
   public async requestPasswordReset({ request, response }: HttpContext) {
     const { email } = request.only(['email']);
+    console.error('Email to reset passwd for' , email)
     const user = await User.findByOrFail('email', email);
 
     // Generate a reset token using crypto

@@ -6,5 +6,8 @@ export const endpoints = {
   logout: `${API_BASE_URL}/logout`,
   requestPasswordReset: `${API_BASE_URL}/request-password-reset`,
   resetPassword: `${API_BASE_URL}/reset-password`,
-  dashboard :`${API_BASE_URL}/dashboard`
+  dashboard :`${API_BASE_URL}/dashboard`,
+  retrieve: ((id: string | number) => `${API_BASE_URL}/retrieve/${id}`),
+  delete: ((id: string | number) => `${API_BASE_URL}/delete/${id}`),
+  upload: `${API_BASE_URL}/documents`,
 };

@@ -1,45 +1,69 @@
 "use client";
-import { loginApi, signupApi, requestPasswordResetApi, resetPasswordApi, logoutApi, retrieveDocumentApi, uploadDocumentApi, getDocuments } from "./apiClient";
-import { useState, useRef } from "react";
+import {
+  loginApi,
+  signupApi,
+  requestPasswordResetApi,
+  resetPasswordApi,
+  dashboardApi,
+  logoutApi,
+  retrieveDocumentApi,
+  uploadDocumentApi,
+  deleteDocumentApi,
+  Document,
+} from "./apiClient";
+import { useState, useRef, useEffect } from "react";
+
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<"none" | "login" | "signup" | "reset">("none");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [token, setToken] = useState("");
-  const [newPassword, setNewPassword] = useState("");
+  const [resetToken, setResetToken] = useState("");
   const [message, setMessage] = useState("");
-  const [documents, setDocuments] = useState<any[]>([]);
-  const [docLoading, setDocLoading] = useState(false);
-  const [docError, setDocError] = useState("");
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [loggedIn, setLoggedIn] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
+  const [mode, setMode] = useState<"login" | "signup" | "resetRequest" | "resetPassword">("login");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch documents when logged in
+  const fetchDocuments = async () => {
+    setMessage("");
+    try {
+      const res = await dashboardApi(email, password);
+      console.log("Dashboard response:", res); // Debug response
+      const fetchedDocuments = Array.isArray(res) ? res : [];
+      setDocuments(fetchedDocuments);
+      setMessage(fetchedDocuments.length === 0 ? "No documents found" : "");
+    } catch (error) {
+      console.error("Failed to load documents:", error);
+      setMessage("Failed to load documents");
+    }
+  };
+
+  // Fetch documents after login
+  useEffect(() => {
+    if (loggedIn) {
+      fetchDocuments();
+    }
+  }, [loggedIn]);
 
   async function submitLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setMessage("");
-    setDocError("");
-    setDocuments([]);
     try {
       const res = await loginApi(email, password);
-      setMessage(JSON.stringify(res));
-      if (res.success || res.token || res.status === "success") {
+      console.log("Login response:", res); // Debug response
+      if (Array.isArray(res)) {
         setLoggedIn(true);
-        setDocLoading(true);
-        try {
-          const docRes = await getDocuments();
-          if (!docRes.ok) throw new Error("Failed to fetch documents");
-          const data = await docRes.json();
-          setDocuments(data.documents || []);
-        } catch (err: any) {
-          setDocError(err.message || "Error fetching documents");
-        }
-        setDocLoading(false);
+        setDocuments(res);
+      } else {
+        setMessage("No documents returned from login");
       }
-    } catch {
+    } catch (error) {
+      console.error("Login failed:", error);
       setMessage("Login failed");
     }
     setLoading(false);
@@ -50,23 +74,27 @@ export default function Home() {
     setLoading(true);
     setMessage("");
     try {
-      const res = await signupApi(email, password);
-      setMessage(JSON.stringify(res));
-    } catch {
+      await signupApi(email, password);
+      setMessage("Signup successful. You can now login.");
+      setMode("login");
+    } catch (error) {
+      console.error("Signup failed:", error);
       setMessage("Signup failed");
     }
     setLoading(false);
   }
 
-  async function submitRequestReset(e: React.FormEvent) {
+  async function submitResetRequest(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setMessage("");
     try {
-      const res = await requestPasswordResetApi(email);
-      setMessage("Password reset link sent. Check your email for the token.");
-    } catch {
-      setMessage("Request failed");
+      await requestPasswordResetApi(email);
+      setMessage("Password reset email sent. Please check your inbox.");
+      setMode("resetPassword");
+    } catch (error) {
+      console.error("Reset request failed:", error);
+      setMessage("Reset request failed");
     }
     setLoading(false);
   }
@@ -76,10 +104,12 @@ export default function Home() {
     setLoading(true);
     setMessage("");
     try {
-      const res = await resetPasswordApi(token, newPassword);
-      setMessage(JSON.stringify(res));
-    } catch {
-      setMessage("Reset failed");
+      await resetPasswordApi(resetToken, password);
+      setMessage("Password reset successful. You can now login.");
+      setMode("login");
+    } catch (error) {
+      console.error("Password reset failed:", error);
+      setMessage("Password reset failed");
     }
     setLoading(false);
   }
@@ -87,29 +117,60 @@ export default function Home() {
   async function handleLogout() {
     setLoading(true);
     setMessage("");
-    setDocError("");
-    setUploadMsg("");
     try {
-      await logoutApi();
-    } catch {}
+      await logoutApi(email, password);
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
     setLoggedIn(false);
     setDocuments([]);
-    setMode("none");
     setEmail("");
     setPassword("");
-    setToken("");
-    setNewPassword("");
+    setResetToken("");
     setLoading(false);
   }
 
-  async function handleRetrieve(docId: string) {
+ async function handleRetrieve(docId: string) {
+  setLoading(true);
+  setMessage("");
+
+  try {
+    const res = await retrieveDocumentApi(docId, email, password);
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+
+    // Let the browser handle the filename from Content-Disposition
+    link.download = "";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    setMessage(`Document retrieved: ${docId}`);
+  } catch (error) {
+    console.error(`Failed to retrieve document ${docId}:`, error);
+    setMessage(`Failed to retrieve document ${docId}`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+
+  async function handleDelete(docId: string) {
     setLoading(true);
     setMessage("");
     try {
-      const res = await retrieveDocumentApi(docId);
-      setMessage(`Document ${docId} retrieved: ` + JSON.stringify(res));
-    } catch {
-      setMessage(`Failed to retrieve document ${docId}`);
+      await deleteDocumentApi(docId, email, password);
+      setMessage(`Document ${docId} deleted successfully`);
+      await fetchDocuments(); // Refresh document list
+    } catch (error) {
+      console.error(`Failed to delete document ${docId}:`, error);
+      setMessage(`Failed to delete document ${docId}`);
     }
     setLoading(false);
   }
@@ -117,107 +178,238 @@ export default function Home() {
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     setUploadMsg("");
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadMsg("File size exceeds 5MB limit.");
+    if (!file) {
+      setUploadMsg("No file selected");
       return;
     }
-    const allowedTypes = ["application/pdf", "application/msword", "image/jpeg", "image/png", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-    if (!allowedTypes.includes(file.type)) {
-      setUploadMsg("Invalid file type. Allowed: doc, pdf, jpg, png.");
+
+    // Enforce 5 MB limit on the frontend
+    const maxSize = 5 * 1024 * 1024; // 5 MB in bytes
+    if (file.size > maxSize) {
+      setUploadMsg("File size exceeds 5 MB limit");
       return;
     }
+
     setLoading(true);
     try {
-      const res = await uploadDocumentApi(file);
-      setUploadMsg("Upload result: " + JSON.stringify(res));
-      // Optionally refresh documents list
-    } catch {
-      setUploadMsg("Upload failed.");
+      await uploadDocumentApi(file, email, password);
+      setUploadMsg("Upload successful");
+      await fetchDocuments();
+    } catch (error) {
+      console.error("Upload failed:", error);
+      setUploadMsg("Upload failed");
     }
     setLoading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   return (
-    <div className="min-h-screen flex flex-row items-start justify-center bg-gray-50 font-sans">
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <h1 className="text-4xl font-bold mb-8 text-blue-700">Document Manager</h1>
-        <div className="bg-white shadow-md rounded-lg p-8 w-full max-w-md flex flex-col gap-6">
-          {!loggedIn && mode === "none" && (
-            <>
-              <button className="w-full py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 transition" onClick={() => setMode("login")}>Login</button>
-              <button className="w-full py-2 px-4 bg-green-600 text-white rounded hover:bg-green-700 transition" onClick={() => setMode("signup")}>Sign Up</button>
-              <button className="w-full py-2 px-4 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition" onClick={() => setMode("reset")}>Forgot Password</button>
-            </>
-          )}
-          {!loggedIn && mode === "login" && (
-            <form className="flex flex-col gap-4" onSubmit={submitLogin}>
-              <input type="email" placeholder="Email" className="border p-2 rounded" value={email} onChange={e => setEmail(e.target.value)} required />
-              <input type="password" placeholder="Password" className="border p-2 rounded" value={password} onChange={e => setPassword(e.target.value)} required />
-              <button type="submit" className="py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 transition" disabled={loading}>Login</button>
-              <button type="button" className="text-sm text-gray-500 mt-2" onClick={() => setMode("none")}>Back</button>
-            </form>
-          )}
-          {!loggedIn && mode === "signup" && (
-            <form className="flex flex-col gap-4" onSubmit={submitSignup}>
-              <input type="email" placeholder="Email" className="border p-2 rounded" value={email} onChange={e => setEmail(e.target.value)} required />
-              <input type="password" placeholder="Password" className="border p-2 rounded" value={password} onChange={e => setPassword(e.target.value)} required />
-              <button type="submit" className="py-2 px-4 bg-green-600 text-white rounded hover:bg-green-700 transition" disabled={loading}>Sign Up</button>
-              <button type="button" className="text-sm text-gray-500 mt-2" onClick={() => setMode("none")}>Back</button>
-            </form>
-          )}
-          {!loggedIn && mode === "reset" && (
-            <>
-              <form className="flex flex-col gap-4" onSubmit={submitRequestReset}>
-                <input type="email" placeholder="Email" className="border p-2 rounded" value={email} onChange={e => setEmail(e.target.value)} required />
-                <button type="submit" className="py-2 px-4 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition" disabled={loading}>Request Password Reset</button>
-                <button type="button" className="text-sm text-gray-500 mt-2" onClick={() => setMode("none")}>Back</button>
-              </form>
-              <form className="flex flex-col gap-4 mt-6" onSubmit={submitResetPassword}>
-                <input type="text" placeholder="Token" className="border p-2 rounded" value={token} onChange={e => setToken(e.target.value)} required />
-                <input type="password" placeholder="New Password" className="border p-2 rounded" value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
-                <button type="submit" className="py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 transition" disabled={loading}>Reset Password</button>
-              </form>
-            </>
-          )}
-          {loggedIn && (
-            <button className="w-full py-2 px-4 bg-red-600 text-white rounded hover:bg-red-700 transition" onClick={handleLogout} disabled={loading}>Logout</button>
-          )}
-          {message && <div className="mt-4 text-sm text-center text-gray-700">{message}</div>}
-        </div>
-        <p className="mt-10 text-gray-500 text-sm">Welcome! Please login or sign up to manage your documents.</p>
-      </div>
-      {/* Documents Section */}
-      <div className="flex-1 flex flex-col items-start justify-start p-8">
-        <h2 className="text-2xl font-semibold mb-4 text-blue-600">Documents</h2>
-        {!loggedIn ? null : docLoading ? (
-          <p>Loading documents...</p>
-        ) : docError ? (
-          <p className="text-red-500">{docError}</p>
-        ) : (
+    <div className="min-h-screen flex flex-row items-start justify-center bg-gray-50 font-sans p-8">
+      <div className="flex-1 max-w-md flex flex-col gap-6">
+        {!loggedIn ? (
           <>
-            {documents.length === 0 ? (
-              <p className="text-gray-500">No documents to show.</p>
-            ) : (
-              <ul className="bg-white shadow rounded-lg p-4 w-full max-w-lg flex flex-col gap-2">
-                {documents.map((doc, idx) => (
-                  <li key={doc.id || idx} className="border-b py-2 flex items-center justify-between">
-                    <span>{doc.name || JSON.stringify(doc)}</span>
-                    <button className="ml-4 px-2 py-1 bg-blue-500 text-white rounded" onClick={() => handleRetrieve(doc.id || idx)} disabled={loading}>Retrieve</button>
-                  </li>
-                ))}
-              </ul>
+            {mode === "login" && (
+              <form className="flex flex-col gap-4" onSubmit={submitLogin}>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  className="border p-2 rounded"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  className="border p-2 rounded"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="submit"
+                  className="py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                  disabled={loading}
+                >
+                  Login
+                </button>
+                <div className="flex justify-between mt-2 text-sm text-blue-600">
+                  <button type="button" onClick={() => setMode("signup")}>
+                    Signup
+                  </button>
+                  <button type="button" onClick={() => setMode("resetRequest")}>
+                    Forgot Password?
+                  </button>
+                </div>
+              </form>
             )}
-            <div className="mt-6">
-              <label className="block mb-2 font-medium">Upload Document (doc, pdf, jpg, png, max 5MB):</label>
-              <input type="file" ref={fileInputRef} accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={handleUpload} className="mb-2" />
-              {uploadMsg && <div className="text-sm text-gray-700">{uploadMsg}</div>}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
 
+            {mode === "signup" && (
+              <form className="flex flex-col gap-4" onSubmit={submitSignup}>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  className="border p-2 rounded"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  className="border p-2 rounded"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="submit"
+                  className="py-2 px-4 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                  disabled={loading}
+                >
+                  Signup
+                </button>
+                <button
+                  type="button"
+                  className="text-sm text-blue-600 mt-2"
+                  onClick={() => setMode("login")}
+                >
+                  Back to Login
+                </button>
+              </form>
+            )}
+
+            {mode === "resetRequest" && (
+              <form className="flex flex-col gap-4" onSubmit={submitResetRequest}>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  className="border p-2 rounded"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+                <button
+                  type="submit"
+                  className="py-2 px-4 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition"
+                  disabled={loading}
+                >
+                  Send Reset Email
+                </button>
+                <button
+                  type="button"
+                  className="text-sm text-blue-600 mt-2"
+                  onClick={() => setMode("login")}
+                >
+                  Back to Login
+                </button>
+              </form>
+            )}
+
+            {mode === "resetPassword" && (
+              <form className="flex flex-col gap-4" onSubmit={submitResetPassword}>
+                <input
+                  type="text"
+                  placeholder="Reset Token"
+                  className="border p-2 rounded"
+                  value={resetToken}
+                  onChange={(e) => setResetToken(e.target.value)}
+                  required
+                />
+                <input
+                  type="password"
+                  placeholder="New Password"
+                  className="border p-2 rounded"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="submit"
+                  className="py-2 px-4 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                  disabled={loading}
+                >
+                  Reset Password
+                </button>
+                <button
+                  type="button"
+                  className="text-sm text-blue-600 mt-2"
+                  onClick={() => setMode("login")}
+                >
+                  Back to Login
+                </button>
+              </form>
+            )}
+          </>
+        ) : (
+          <button
+            className="py-2 px-4 bg-red-600 text-white rounded hover:bg-red-700 transition"
+            onClick={handleLogout}
+            disabled={loading}
+          >
+            Logout
+          </button>
+        )}
+        {message && <p className="text-sm text-gray-700">{message}</p>}
+      </div>
+
+     
+       {/* Documents Section */}
+{loggedIn && (
+  <div className="flex-1 flex flex-col items-start justify-start ml-8">
+    <h2 className="text-2xl font-semibold mb-4 text-blue-600">Uploaded Documents</h2>
+
+    {documents.length === 0 ? (
+      <p className="text-gray-500">No documents found</p>
+    ) : (
+      <ol className="bg-white shadow rounded-lg p-4 w-full max-w-lg flex flex-col gap-2 list-decimal list-inside">
+        {documents.map((doc, index) => (
+          <li
+            key={doc.id || index}
+            className="flex justify-between items-center border-b py-2"
+          >
+            <span className="font-mono text-blue-700">{doc.url}</span>
+            <div className="flex gap-2">
+              <button
+                className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
+                onClick={() => handleRetrieve(String(doc.id))}
+                disabled={loading}
+              >
+                Get
+              </button>
+              <button
+                className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition"
+                onClick={() => handleDelete(String(doc.id))}
+                disabled={loading}
+              >
+                Delete
+              </button>
+            </div>
+          </li>
+        ))}
+      </ol>
+    )}
+
+    <div className="mt-6 w-full max-w-lg">
+      <label className="block mb-2 font-medium text-gray-700">
+        Upload Document (max 5 MB):
+      </label>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleUpload}
+        accept=".pdf,.doc,.docx,.jpg,.png"
+        className="mb-2 border p-2 rounded w-full"
+      />
+      {uploadMsg && <p className="text-sm text-gray-700">{uploadMsg}</p>}
+    </div>
+
+    <button
+      className="mt-6 py-2 px-4 bg-red-600 text-white rounded hover:bg-red-700 transition"
+      onClick={handleLogout}
+      disabled={loading}
+    >
+      Logout
+    </button>
+  </div>
+)} </div>)}
